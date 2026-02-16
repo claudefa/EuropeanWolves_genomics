@@ -1,0 +1,6 @@
+data_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/Groups/M_NorthWesternIberian/"
+out_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/results_LD_M_NorthWesternIberian/"
+map_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/VCFs/"
+map_file_suffix: ".average_canFam3.1.txt"
+genome_build: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/regions.tsv"
+method: "ld"
