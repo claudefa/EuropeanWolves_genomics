@@ -7,6 +7,6 @@
 
 conda activate feems_e
 
-python run_feems_claudia.py
+python run_feems_nocaptive.py
 
 
