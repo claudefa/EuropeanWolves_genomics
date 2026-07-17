@@ -11,23 +11,23 @@ library(patchwork)
 setwd("~/Documents/OneDrive - University of Copenhagen/ResQ_MSCA/")
 
 #Metadata -----
-metadata_mw <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 1)
+metadata_mw <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 1)
 samples <- metadata_mw$SampleID
 
-groups <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 2)
+groups <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 2)
 
-order_popid <- c("EASIA","VOUR","SWASIA","KAR",
+order_popid <- c("EASIA","SWASIA","ZOO","KAR",
                  "EFIN","WFIN", "SCAN", "NBAL",
-                 "SBAL","CAR" ,"EEL","CEL",
+                 "SBAL","CEL","VOUR","CAR" ,
                  "DINBAL","NWIB","ITA")
 
 order_pop <- c("Karelian","Eastern Finland",
                "Western Finland", "Scandinavian", "Northern Baltic",
-               "Southern Baltic","Carpathian" ,"Eastern European Lowlands","Central European Lowlands",
+               "Southern Baltic","Carpathian" ,"Central European Lowlands", "Volga-Ural",
                "Dinaric Balkan","North Western Iberian","Italian",
-               "Eastern Asian","Volga-Ural","South Western Asian")
-order_pop2 <- c("Northern Baltic","Southern Baltic","Eastern European Lowlands","Central European Lowlands",
-                "Karelian","Eastern Finland","Western Finland", "Scandinavian", "Carpathian" ,
+               "Eastern Asian","Volga-Ural","South Western Asian","Zoo")
+order_pop2 <- c("Northern Baltic","Southern Baltic","Central European Lowlands","Volga-Ural",
+                "Karelian","Eastern Finland","Western Finland", "Scandinavian","Zoo", "Carpathian" ,
                 "Dinaric Balkan","North Western Iberian","Italian")
 
 metadata_mw$Group <- factor(metadata_mw$Group, levels = order_pop, ordered = T)
@@ -37,6 +37,7 @@ groups$Group <- factor(groups$Group, levels = order_pop, ordered = T)
 groups$GroupID <- factor(groups$GroupID, levels = order_popid, ordered = T)
 
 metadata_mw2 <- merge(metadata_mw, groups[, c("Group","colour","SuperGroup")], by="Group")
+metadata_mw2$SuperGroup <- factor(metadata_mw2$SuperGroup, levels=c("Fennoscandia","Eastern","Southern","Asian","Zoo"), ordered = T)
 
 
 # Read files recent Ne with HapNe LD all samples------
@@ -173,7 +174,7 @@ summaryNe_df$perc_10_1  <- (exp(summaryNe_df$r_10_1) - 1) * 100
 summaryNe_df$perc_50_10  <- (exp(summaryNe_df$r_50_10) - 1) * 100
 
 
-write.csv2(summaryNe_df,"Files/Ne_rates.csv", quote=F, row.names = F)
+write.csv2(summaryNe_df,"Files/Ne_rates_NEW.csv", quote=F, row.names = F)
 
 summaryNe_df_g <- gather(summaryNe_df, Rate_G, Perc, -Group, -SuperGroup, -minNe,-maxNe,-Ne50,
                                         -Ne20,-Ne10,-Ne1,-r_50_20,-r_20_10,-r_10_1,-r_50_10)
@@ -193,7 +194,7 @@ summaryNe_df_gm2 <- summaryNe_df_gm[summaryNe_df_gm$Rate_G!="Gen50_10",]
 
 groups_noAsian <- groups[groups$Group %in% order_pop2, ]
 groups_noAsian <- groups_noAsian[match(order_pop2, groups_noAsian$Group), ]
-summaryNe_df_gm_noAsian <- summaryNe_df_gm2[summaryNe_df_gm2$SuperGroup!="Asian",]
+summaryNe_df_gm_noAsian <- summaryNe_df_gm2[-which(summaryNe_df_gm2$SuperGroup%in%c("Asian","Zoo")),]
 
 col_vec <- setNames(groups_noAsian$colour, groups_noAsian$GroupID)
 xlab_vec <- setNames(
@@ -288,7 +289,9 @@ g_gAsian <- g_gAsian +
     segment.color = "grey70",
     segment.size = 0.3,
     max.overlaps = Inf,
-    show.legend = FALSE )
+    show.legend = FALSE )+
+  coord_cartesian(clip = "on", ylim = c(0,30000))
+  
 g_gAsian
 
 ggsave("Plots/HapNeLD_onlyAsian.pdf", width = 5, height = 3)
@@ -300,12 +303,12 @@ ggsave("Plots/FigS18.pdf", width = 5, height = 3)
 
 # PLOT by SUBGROUP without Asians
 df_filt <- ne_df_m %>%
-  filter(SuperGroup != "Asian", TIME <= 50)
+  filter(!SuperGroup %in% c("Asian","Zoo"), TIME <= 50)
 
 # Only average
 lab_df <- ne_avg %>%
   group_by(Group, SuperGroup) %>%
-  filter(SuperGroup != "Asian", TIME <= 50)%>%
+  filter(!SuperGroup %in% c("Asian","Zoo"), TIME <= 50)%>%
   ungroup() %>%
   mutate(
     Q0.5 = Q0.5_median   # rename so geom_text_repel works without changes
@@ -319,7 +322,7 @@ g_g0 <- g_g0 +
             linewidth = 0.5,
             alpha = 0.5)+
   # Average
-  geom_line(data = ne_avg[ne_avg$SuperGroup!="Asian",],aes(x = TIME, y = Q0.5_median, group = Group, color = colour),
+  geom_line(data = ne_avg[-which(ne_avg$SuperGroup%in%c("Asian","Zoo")),],aes(x = TIME, y = Q0.5_median, group = Group, color = colour),
            # stat="smooth", method = "gam", formula = y ~ s(x, k = 10), se = FALSE,  
             linewidth = 1.1)  +
   facet_wrap(.~SuperGroup, scales="free_y",nrow=1)+
@@ -345,7 +348,7 @@ g_g0 <- g_g0 +
                   show.legend = FALSE
   )
 g_g0
-ggsave("Plots/HapNeLd_50g_allsamples_trajectory_allruns.pdf", height = 8, width = 14)
+ggsave("Plots/HapNeLd_50g_allsamples_trajectory_allruns.pdf", height = 4, width = 14)
 
 
 # inserts 
@@ -457,9 +460,9 @@ ggsave("Plots/HapNeLD_together_all.pdf", width = 12, height = 7)
 # Add inbreeding by age run roh.R
 groups_noAsian <- groups[groups$Group %in% order_pop2, ]
 groups_noAsian <- groups_noAsian[match(order_pop2, groups_noAsian$Group), ]
-roh_time_df_gather_m_noAsian <- roh_time_df_gather_m[roh_time_df_gather_m$SuperGroup!="Asian",]
+roh_time_df_gather_m_noAsian <- roh_time_df_gather_m[-which(roh_time_df_gather_m$SuperGroup%in%c("Asian","Zoo")),]
 
-order_pop2_short <- c("NBAL","SBAL","EEL","CEL",
+order_pop2_short <- c("NBAL","SBAL","VOUR","CEL",
                       "KAR","EFIN","WFIN","SCAN",
                       "CAR","DINBAL","NWIB","ITA")
 roh_time_df_gather_m_noAsian$GroupID <- factor(
@@ -470,15 +473,13 @@ roh_time_df_gather_m_noAsian$GroupID <- factor(
 
 
 col_vec <- setNames(groups_noAsian$colour, groups_noAsian$GroupID)
-xlab_vec <- setNames(
-  paste0("<span style='color:", col_vec, "'>", groups_noAsian$GroupID, "</span>"),
-  groups_noAsian$GroupID
-)
+xlab_vec <- setNames(paste0("<span style='color:", col_vec, "'>", groups_noAsian$GroupID, "</span>"),
+  groups_noAsian$GroupID)
 
 
 
 g_age<- ggplot(roh_time_df_gather_m_noAsian,
-               aes(GroupID, value*100, color=Group, shape=Status))
+               aes(GroupID, value*100, color=Group))
 g_age <- g_age + 
   geom_point(position=position_jitterdodge(dodge.width = 0.6, jitter.width = 0.6), size=0.7,alpha=0.7)+
   geom_boxplot(outlier.shape = NA, fill=NA )+  facet_wrap(.~key, nrow=1, scales="free_y")+
@@ -496,6 +497,7 @@ g_age
 g_final <- g4  / g_age + plot_layout(heights = c(1,0.6)) + plot_annotation(tag_levels = 'A')
 #ggsave("Plots/HapNeLD_trajectory_rohage.pdf", height = 8, width = 10)
 ggsave("Plots/Figure3.pdf", height = 8, width = 10)
+
 
 # ONLY PURE SAMPLES, >80% OF ONE CLUSTER HAPLONET ------
 # Read files recent Ne with HapNe LD pure samples------
@@ -550,12 +552,12 @@ ne_avg <- merge(ne_avg, groups[,c("Group","colour","SuperGroup")], by="Group")
 
 # PLOT by SUBGROUP without Asians
 df_filt <- ne_df_m %>%
-  filter(SuperGroup != "Asian", TIME <= 50)
-
+  filter(!SuperGroup %in% c("Asian","Zoo"), TIME <= 50)
+  
 # Only average
 lab_df <- ne_avg %>%
   group_by(Group, SuperGroup) %>%
-  filter(SuperGroup != "Asian", TIME <= 50)%>%
+  filter(!SuperGroup %in% c("Asian","Zoo"), TIME <= 50)%>%
   ungroup() %>%
   mutate(
     Q0.5 = Q0.5_median   # rename so geom_text_repel works without changes
@@ -572,7 +574,7 @@ g_g0 <- g_g0 +
             linewidth = 0.5,
             alpha = 0.5)+
   # Average
-  geom_line(data = ne_avg[ne_avg$SuperGroup!="Asian",],aes(x = TIME, y = Q0.5_median, group = Group, color = colour),
+  geom_line(data = ne_avg[-which(ne_avg$SuperGroup%in%c("Asian","Zoo")),],aes(x = TIME, y = Q0.5_median, group = Group, color = colour),
             # stat="smooth", method = "gam", formula = y ~ s(x, k = 10), se = FALSE,  
             linewidth = 1.1)  +
   facet_wrap(.~SuperGroup, scales="free_y",nrow=1)+

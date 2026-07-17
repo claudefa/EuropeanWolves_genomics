@@ -9,7 +9,7 @@
 module unload plink
 module load plink/1.9.0
 
-vcf="/projects/psg/people/pkb156/MW/popgen/phased.european.info08.name.norelated.maf01.wolves.vcf.gz"
+vcf="/projects/psg/people/qvw641/ResQ_wolf/VCF/combined.europeanwolves.norelated.maf01.vcf.gz"
 dir="/projects/psg/people/qvw641/ResQ_wolf/HapNe/"
 
 group=$(sed -n "$SLURM_ARRAY_TASK_ID"p /home/qvw641/ResQ_wolf/Groups/Groupings | awk '{print $1}')

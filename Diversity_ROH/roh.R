@@ -14,23 +14,26 @@ library(cowplot)
 setwd("~/Documents/OneDrive - University of Copenhagen/ResQ_MSCA/")
 
 # Metadata ----
-metadata_mw <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 1)
+metadata_mw <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 1)
+metadata_mw<-metadata_mw %>%
+  filter(is.na(Remove) | Remove!="Yes")
+
 samples <- metadata_mw$SampleID
 
-groups <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 2)
+groups <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 2)
 
-order_popid <- c("EASIA","VOUR","SWASIA","KAR",
+order_popid <- c("EASIA","VOUR","SWASIA","ZOO","KAR",
                  "EFIN","WFIN", "SCAN", "NBAL",
-                 "SBAL","CAR" ,"EEL","CEL",
+                 "SBAL","CAR" ,"CEL",
                  "DINBAL","NWIB","ITA")
 
 order_pop <- c("Karelian","Eastern Finland",
                "Western Finland", "Scandinavian", "Northern Baltic",
-               "Southern Baltic","Carpathian" ,"Eastern European Lowlands","Central European Lowlands",
+               "Southern Baltic","Carpathian" ,"Central European Lowlands","Volga-Ural",
                "Dinaric Balkan","North Western Iberian","Italian",
-               "Eastern Asian","Volga-Ural","South Western Asian")
-order_pop2 <- c("Northern Baltic","Southern Baltic","Eastern European Lowlands","Central European Lowlands",
-                "Karelian","Eastern Finland","Western Finland", "Scandinavian", "Carpathian" ,
+               "Eastern Asian","South Western Asian","Zoo")
+order_pop2 <- c("Northern Baltic","Southern Baltic","Central European Lowlands",
+                "Karelian","Eastern Finland","Western Finland", "Scandinavian","Zoo", "Carpathian" ,
                 "Dinaric Balkan","North Western Iberian","Italian")
 
 metadata_mw$Group <- factor(metadata_mw$Group, levels = order_pop, ordered = T)
@@ -41,19 +44,19 @@ groups$GroupID <- factor(groups$GroupID, levels = order_popid, ordered = T)
 
 
 metadata_mw2 <- merge(metadata_mw, groups[, c("Group","colour","SuperGroup")], by="Group")
-metadata_mw2$SuperGroup <- factor(metadata_mw2$SuperGroup, levels=c("Fennoscandia","Eastern","Southern","Asian"), ordered = T)
+metadata_mw2$SuperGroup <- factor(metadata_mw2$SuperGroup, levels=c("Fennoscandia","Eastern","Southern","Asian","Zoo"), ordered = T)
 
 # ROH ------
 roh_file <- read.table("Files/ROH/modernWolf_AF_map.txt") # with estimated AF from the VCF and Dog recomb map
 
 colnames(roh_file) <- c("V1","SampleID", "CHR","START","END","length","markers", "quality")
-assembly <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 3)
+assembly <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 3)
 chr_order <- assembly$CHR
 assembly$CHR <- factor( assembly$CHR, ordered = T, levels = chr_order)
 
 # Quality and size evaluation -----
 
-g <- ggplot(roh_file[roh_file$SampleID=="AW033",], aes(quality,length))
+g <- ggplot(roh_file[roh_file$SampleID=="W10",], aes(quality,length))
 g <- g+ geom_point() + theme_light()+
   geom_hline(yintercept = 500000, linetype="dashed", color="red") +
   geom_vline(xintercept = 50, linetype="dashed",color="red") +
@@ -89,7 +92,7 @@ roh_perc <- lapply(1:length(samples), function(i) {
 roh_perc_df <- do.call(rbind, roh_perc)
 
 #add metadata info
-roh_perc_df_m <- merge(roh_perc_df, metadata_mw2[,c("SampleID","Location","Label","Group","GroupID","SuperGroup")], by="SampleID")
+roh_perc_df_m <- merge(roh_perc_df, metadata_mw2[,c("SampleID","Location","Group","GroupID","SuperGroup")], by="SampleID")
 roh_perc_df_m$Group <- factor(roh_perc_df_m$Group, levels = order_pop, ordered = T)
 roh_perc_df_m$GroupID <- factor(roh_perc_df_m$GroupID, levels = order_popid, ordered = T)
 
@@ -111,7 +114,7 @@ mean(roh_perc_df_m[roh_perc_df_m$Group=="Central European Lowlands",]$ExtraLong)
 write.csv2(roh_perc_df_m, "Files/Froh.csv", quote = F, row.names = F)
 
 #Formatting for plotting ----
-roh_perc_df_gather <- gather(roh_perc_df_m, key, value, -Total, -SampleID, -Location, -Label, -Group,-GroupID, -SuperGroup)
+roh_perc_df_gather <- gather(roh_perc_df_m, key, value, -Total, -SampleID, -Location, -Group,-GroupID, -SuperGroup)
 
 roh_perc_df_gather$key <- gsub("Short","500Kb-1Mb", roh_perc_df_gather$key )
 roh_perc_df_gather$key <- gsub("Intermediate","1-2.5Mb", roh_perc_df_gather$key )
@@ -155,7 +158,7 @@ froh
 # ROH by size ------
 roh_perc_df_gather_m <- merge(roh_perc_df_gather, groups[, c("Group","colour")], by="Group")
 
-g<- ggplot(roh_perc_df_gather_m, aes(Group, value*100, color=colour,shape=Label, group=interaction(Group,Label)))
+g<- ggplot(roh_perc_df_gather_m, aes(Group, value*100, color=colour, group=interaction(Group)))
 g <- g + geom_point(position = "jitter", alpha=0.6)+
   geom_boxplot(outlier.shape = NA, fill=NA )+  facet_wrap(.~key, ncol=4)+
   theme_classic()+ scale_shape_manual(values=c(2,1,3))+
@@ -168,7 +171,7 @@ g
 ggsave("Plots/Total_rohs_bysize_modernwolves_AF_recombmap.pdf", width = 16, height = 7)
 
 
-roh_perc_df_gather_m$Group <- factor(roh_perc_df_gather_m$Group, levels = order_pop2, ordered = TRUE)
+roh_perc_df_gather_m$Group <- factor(roh_perc_df_gather_m$Group, levels = order_pop, ordered = TRUE)
 
 g_size<- ggplot(roh_perc_df_gather_m[roh_perc_df_gather_m$SuperGroup!="Asian",],
            aes(Group, value*100, color=colour))
@@ -197,11 +200,11 @@ roh_time <- lapply(1:length(samples), function(i) {
 roh_time_df <- do.call(rbind, roh_time)
 
 #add metadata info
-roh_time_df_m <- merge(roh_time_df, metadata_mw2[,c("SampleID","Location","Label","Group","GroupID","SuperGroup", "Status")], by="SampleID")
+roh_time_df_m <- merge(roh_time_df, metadata_mw2[,c("SampleID","Location","Group","GroupID","SuperGroup", "Status")], by="SampleID")
 roh_time_df_m$Group <- factor(roh_time_df_m$Group, levels = order_pop, ordered = T)
 roh_time_df_m$GroupID <- factor(roh_time_df_m$GroupID, levels = order_popid, ordered = T)
 
-roh_time_df_gather <- gather(roh_time_df_m, key, value, -SampleID, -Location, -Label, -Group,-GroupID, -SuperGroup, -Status)
+roh_time_df_gather <- gather(roh_time_df_m, key, value, -SampleID, -Location, -Group,-GroupID, -SuperGroup, -Status)
 
 roh_time_df_gather$key <- gsub("cat2","<10 Gen (> 5Mb)", roh_time_df_gather$key )
 roh_time_df_gather$key <- gsub("cat3",">10 - 20 Gen (2.5-5Mb)", roh_time_df_gather$key )
@@ -213,7 +216,7 @@ order <- c("<10 Gen (> 5Mb)", ">10 - 20 Gen (2.5-5Mb)",">20 - 50 Gen (1-2.5Mb)",
 roh_time_df_gather$key <- factor(roh_time_df_gather$key, levels = order, ordered = TRUE)
 roh_time_df_gather_m <- merge(roh_time_df_gather, groups[, c("Group","colour")], by="Group")
 
-roh_time_df_gather_m$Group <- factor(roh_time_df_gather_m$Group, levels = order_pop2, ordered = TRUE)
+roh_time_df_gather_m$Group <- factor(roh_time_df_gather_m$Group, levels = order_pop, ordered = TRUE)
 
 
 g_age<- ggplot(roh_time_df_gather_m[roh_time_df_gather_m$SuperGroup!="Asian",],

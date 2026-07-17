@@ -1,4 +1,4 @@
-data_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/Groups_Pure/M_WesternFinland/"
+data_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/Groups/P_WesternFinland/"
 out_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/results_LD_P_WesternFinland/"
 map_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/VCFs/"
 map_file_suffix: ".average_canFam3.1.txt"

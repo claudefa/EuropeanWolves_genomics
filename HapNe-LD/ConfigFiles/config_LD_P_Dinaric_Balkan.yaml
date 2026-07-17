@@ -1,4 +1,4 @@
-data_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/Groups_Pure/M_Dinaric_Balkan/"
+data_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/Groups/P_Dinaric_Balkan/"
 out_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/results_LD_P_Dinaric_Balkan/"
 map_dir: "/projects/psg/people/qvw641/ResQ_wolf/HapNe/VCFs/"
 map_file_suffix: ".average_canFam3.1.txt"

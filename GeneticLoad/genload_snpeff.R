@@ -7,26 +7,30 @@ library(readxl)
 library(bootstrap)
 library(ggtext)
 library(patchwork)
+library(data.table)
 
 setwd("~/Documents/OneDrive - University of Copenhagen/ResQ_MSCA/")
 
 #Metadata
-metadata_mw <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 1)
+metadata_mw <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 1)
+metadata_mw$Remove<- as.character(metadata_mw$Remove)
+metadata_mw <- metadata_mw[-which(metadata_mw$Remove=="Yes"),]
+samples <- metadata_mw$SampleID
 
-groups <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 2)
+groups <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 2)
 
-order_popid <- c("EASIA","VOUR","SWASIA","KAR",
+order_popid <- c("EASIA","SWASIA","ZOO","KAR",
                  "EFIN","WFIN", "SCAN", "NBAL",
-                 "SBAL","CAR" ,"EEL","CEL",
+                 "SBAL","CEL","VOUR","CAR" ,
                  "DINBAL","NWIB","ITA")
 
 order_pop <- c("Karelian","Eastern Finland",
                "Western Finland", "Scandinavian", "Northern Baltic",
-               "Southern Baltic","Carpathian" ,"Eastern European Lowlands","Central European Lowlands",
+               "Southern Baltic","Carpathian" ,"Central European Lowlands","Volga-Ural",
                "Dinaric Balkan","North Western Iberian","Italian",
-               "Eastern Asian","Volga-Ural","South Western Asian")
-order_pop2 <- c("Northern Baltic","Southern Baltic","Eastern European Lowlands","Central European Lowlands",
-                "Karelian","Eastern Finland","Western Finland", "Scandinavian", "Carpathian" ,
+               "Eastern Asian","South Western Asian","Zoo")
+order_pop2 <- c("Northern Baltic","Southern Baltic","Central European Lowlands","Volga-Ural",
+                "Karelian","Eastern Finland","Western Finland", "Scandinavian","Zoo", "Carpathian" ,
                 "Dinaric Balkan","North Western Iberian","Italian")
 
 metadata_mw$Group <- factor(metadata_mw$Group, levels = order_pop, ordered = T)
@@ -37,7 +41,9 @@ groups$GroupID <- factor(groups$GroupID, levels = order_popid, ordered = T)
 
 
 metadata_mw2 <- merge(metadata_mw, groups[, c("Group","colour","SuperGroup")], by="Group")
-metadata_mw2$SuperGroup <- factor(metadata_mw2$SuperGroup, levels=c("Fennoscandia","Eastern","Southern","Asian"), ordered = T)
+
+metadata_mw2$SuperGroup <- factor(metadata_mw2$SuperGroup, levels=c("Eastern","Fennoscandia","Southern","Asian","Zoo"), ordered = T)
+
 
 outgroups_id <- c("AlabamaCoyote","Alaska2","Algerian_grey_wolf","AndeanFox","BerlinZoo",
                "C_adustus","C_mesomelas","CaliforniaCoyote","Ethiopian_grey_wolf",
@@ -61,9 +67,8 @@ outgroup <- cbind.data.frame(outgroups_id,outgroup_g)
 
 samples_onlyWolves <- metadata_mw$SampleID
 
-metadata_mw2$LON <- as.numeric(metadata_mw2$LON)
-metadata_mw2$LAT <- as.numeric(metadata_mw2$LAT)
-metadata_mw2$SuperGroup <- factor(metadata_mw2$SuperGroup, levels=c("Fennoscandia","Eastern","Southern","Asian"), ordered = T)
+metadata_mw2$LON <- as.numeric(metadata_mw2$Longitude)
+metadata_mw2$LAT <- as.numeric(metadata_mw2$Latitude)
 
 groups_noAsian <- groups[groups$Group %in% order_pop2, ]
 groups_noAsian <- groups_noAsian[match(order_pop2, groups_noAsian$Group), ]
@@ -72,33 +77,32 @@ groups <- groups[match(order_pop, groups$Group), ]
 
 # Obtain counts for all groups ------
 # read files for each category and remove sites with all sites have 0|0
-samples<- read.table("Files/GenLoad/SNPeff/Samples_829")
+samples<- read.table("Files/GenLoad/SNPeff/Samples_1117")
 
 high <- read.table("Files/GenLoad/SNPeff/high.txt")
 colnames(high) <- c("Chrom","Pos","REF","ALT", samples$V1)
 high$chrompos<- paste0(high$Chrom,":",high$Pos)
-keep <- apply(high[5:833], 1, function(x) length(unique(x[!is.na(x)])) != 1)
+keep <- apply(high[5:1121], 1, function(x) length(unique(x[!is.na(x)])) != 1)
 high_nonvariable <- high[keep, ]
 high_nonvariable$Type <- "High"
 
 moderate <- read.table("Files/GenLoad/SNPeff/moderate.txt")
 colnames(moderate) <- c("Chrom","Pos","REF","ALT", samples$V1)
 moderate$chrompos<- paste0(moderate$Chrom,":",moderate$Pos)
-keep <- apply(moderate[5:833], 1, function(x) length(unique(x[!is.na(x)])) != 1)
+keep <- apply(moderate[5:1121], 1, function(x) length(unique(x[!is.na(x)])) != 1)
 moderate_nonvariable <- moderate[keep, ]
 moderate_nonvariable$Type <- "Moderate"
 
 low <- read.table("Files/GenLoad/SNPeff/low.txt")
 colnames(low) <- c("Chrom","Pos","REF","ALT", samples$V1)
 low$chrompos<- paste0(low$Chrom,":",low$Pos)
-keep <- apply(low[5:833], 1, function(x) length(unique(x[!is.na(x)])) != 1)
+keep <- apply(low[5:1121], 1, function(x) length(unique(x[!is.na(x)])) != 1)
 low_nonvariable <- low[keep, ]
 low_nonvariable$Type <- "Low"
 
 # Put all categories in a single dataframe
 total_file <- rbind.data.frame(high_nonvariable,moderate_nonvariable,low_nonvariable)
 total_sites_wononvariable <- length(total_file$Chrom)
-
 
 # Function to add ancestral state ----
 add_ref_ancestral_filter <- function(df, outgroups, min_support = 2) {
@@ -127,8 +131,10 @@ add_ref_ancestral_filter <- function(df, outgroups, min_support = 2) {
 }
 
 #Select a list of outgroups and annotate ancestral state----
-outgroups <- c("AlabamaCoyote","MW692","Algerian_grey_wolf") #coyote, goldenjackal and african goldern wolf
-total_file_anc <- add_ref_ancestral_filter(total_file, outgroups, min_support = 2)
+##outgroups <- c("AlabamaCoyote","MW692","CaliforniaCoyote") #two coyote, goldenjackal
+outgroups <- c("AlabamaCoyote","MW692") #1 coyote, 1goldenjackal
+
+total_file_anc <- add_ref_ancestral_filter(total_file, outgroups, min_support = 1) # only one supporting
 
 # Filter to sites where ancestral is confidently 0 (REF = ancestral)
 total_file_anc_real <- total_file_anc[total_file_anc$keep_refanc0, ]
@@ -137,8 +143,8 @@ length(total_file_anc_real$Chrom)/length(total_file$Chrom)
 
 
 #check other outgroups, not used for the final analysis, just as a sanity check
-outgroups2 <- c("AlabamaCoyote","MW692","Algerian_grey_wolf","AndeanFox","BerlinZoo") #more conservative
-total_file_anc2 <- add_ref_ancestral_filter(total_file, outgroups2, min_support = 4)
+outgroups2 <- c("AlabamaCoyote","MW692","AndeanFox","BerlinZoo") #more conservative
+total_file_anc2 <- add_ref_ancestral_filter(total_file, outgroups2, min_support = 3)
 
 # Filter to sites where ancestral is confidently 0 (REF = ancestral)
 total_file_anc_real2 <- total_file_anc2[total_file_anc2$keep_refanc0, ]
@@ -148,7 +154,7 @@ length(total_file_anc_real2$Chrom)/length(total_file$Chrom)
 # extract info for all samples (not outgroups) -----
 load_list<-list()
 
-load_list <- lapply(1:650, function(i) {
+load_list <- lapply(1:667, function(i) {
   j <- i+4
   print(i)
   
@@ -164,38 +170,38 @@ load_list <- lapply(1:650, function(i) {
   
   #metadata
   sample_name <- samples_onlyWolves[i]
-  Label <- metadata_mw[metadata_mw$SampleID==samples_onlyWolves[i],]$Label
   Group <- metadata_mw[metadata_mw$SampleID==samples_onlyWolves[i],]$Group
   Location <- metadata_mw[metadata_mw$SampleID==samples_onlyWolves[i],]$Location
   
   
   df_poly <- df[df[[sample_name]] != "0|0", ]
   
-  colnames(df_poly) <- c("Genotype","AlabamaCoyote","MW692",
-                             "Algerian_grey_wolf","Class","Variant")
-#  colnames(df_poly) <- c("Genotype","AlabamaCoyote","MW692",
-#                         "Algerian_grey_wolf","AndeanFox","BerlinZoo","Class","Variant") # this for when we use more outgroups
+   colnames(df_poly) <- c("Genotype","AlabamaCoyote","MW692",
+                              "Class","Variant")
+  # colnames(df_poly) <- c("Genotype","AlabamaCoyote","MW692",
+  #                        "AndeanFox","BerlinZoo","Class","Variant") # this for when we use more outgroups
   
-  cbind.data.frame(df_poly[,c(1,5:6)], SampleID=sample_name, Label=Label, 
-                   Group=Group, Location=Location)
-#   cbind.data.frame(df_poly[,c(1,7:8)], SampleID=sample_name, Label=Label, 
-#                    Group=Group, Location=Location)
+   cbind.data.frame(df_poly[,c(1,4:5)], SampleID=sample_name, 
+                    Group=Group, Location=Location)
+  # cbind.data.frame(df_poly[,c(1,6:7)], SampleID=sample_name,
+  #                  Group=Group, Location=Location)
 })
 
 library(data.table)
 
-load_list_genotypes <- rbindlist(load_list, use.names = TRUE, fill = TRUE)
+#load_list_genotypes <- rbindlist(load_list, use.names = TRUE, fill = TRUE)
 
 load_list_genotypes <- do.call(rbind,load_list)
 
 # write output  
-write.csv2(load_list_genotypes, "Files/gen_load_genotypes_wolves_only3out.csv", quote = F, row.names = F)
-#write.csv2(load_list_genotypes, "Files/gen_load_genotypes_wolves_only5out.csv", quote = F, row.names = F)
+#write.csv2(load_list_genotypes, "Files/gen_load_genotypes_wolves_only3out_NEW.csv", quote = F, row.names = F)
+#write.csv2(load_list_genotypes, "Files/gen_load_genotypes_wolves_only5out_NEW.csv", quote = F, row.names = F)
+
 
 # LOAD file with counts to avoid running the previous code -----
 total_genotypes <- load_list_genotypes
-#total_genotypes <- read.csv2("Files/gen_load_genotypes_wolves_only3out.csv")
-#total_genotypes <- read.csv2("Files/gen_load_genotypes_wolves_only5out.csv")
+total_genotypes <- read.csv2("Files/gen_load_genotypes_wolves_only3out_NEW.csv")
+#total_genotypes <- read.csv2("Files/gen_load_genotypes_wolves_only5out_NEW.csv")
 
 # Calculate frequencies of each variant -----
 
@@ -240,6 +246,48 @@ af_high <- derived_genotypes_high %>%
   mutate(Freq = ifelse(n > 0, sum_dosage / n, NA_real_)) %>%
   transmute(Variant, Freq, Type = "High", Group)
 
+min_n <- 16
+n_rep <- 10
+
+sample_info <- derived_genotypes_high %>%
+  filter(Group != "Zoo") %>%
+  distinct(Group, SampleID)
+
+af_down_high <- map_dfr(1:n_rep, function(rep_i) {
+  
+  sampled_ids <- sample_info %>%
+    group_by(Group) %>%
+    slice_sample(n = min_n, replace = FALSE) %>%
+    ungroup()
+  
+  sampled_ids %>%
+    crossing(Variant = all_variants_high$Variant) %>%
+    left_join(
+      derived_genotypes_high %>%
+        filter(Group != "Zoo") %>%
+        mutate(dosage = unname(dosage_map[Genotype])) %>%
+        select(Group, SampleID, Variant, dosage),
+      by = c("Group", "SampleID", "Variant")
+    ) %>%
+    mutate(dosage = replace_na(dosage, 0)) %>%
+    group_by(Group, Variant) %>%
+    summarise(sum_dosage = sum(dosage), .groups = "drop") %>%
+    mutate(
+      rep = rep_i,
+      Down_freq = sum_dosage / (2 * min_n)
+    )
+})
+
+dt <- as.data.table(af_down_high)
+af_down_summary_high <- dt[,.(Down_freq = mean(Down_freq, na.rm = TRUE),
+    SD_freq = sd(Down_freq, na.rm = TRUE),
+    n_reps = sum(!is.na(Down_freq))),
+  by = .(Group, Variant)]
+
+af_high2 <- af_high %>%
+  left_join(af_down_summary_high, by = c("Group", "Variant")) %>%
+  mutate(Type = "High") %>%
+  select(Variant, Group, Type, Freq, Down_freq, SD_freq)
 
 # Moderate 
 # n per group 
@@ -258,6 +306,43 @@ af_mod <- derived_genotypes_moderate %>%
   left_join(n_by_group, by = "Group") %>%
   mutate(Freq = ifelse(n > 0, sum_dosage / n, NA_real_)) %>%
   transmute(Variant, Freq, Type = "Moderate", Group)
+
+af_down_mod <- map_dfr(1:n_rep, function(rep_i) {
+  
+  sampled_ids <- sample_info %>%
+    group_by(Group) %>%
+    slice_sample(n = min_n, replace = FALSE) %>%
+    ungroup()
+  
+  sampled_ids %>%
+    crossing(Variant = all_variants_moderate$Variant) %>%
+    left_join(
+      derived_genotypes_moderate %>%
+        filter(Group != "Zoo") %>%
+        mutate(dosage = unname(dosage_map[Genotype])) %>%
+        select(Group, SampleID, Variant, dosage),
+      by = c("Group", "SampleID", "Variant")
+    ) %>%
+    mutate(dosage = replace_na(dosage, 0)) %>%
+    group_by(Group, Variant) %>%
+    summarise(sum_dosage = sum(dosage), .groups = "drop") %>%
+    mutate(
+      rep = rep_i,
+      Down_freq = sum_dosage / (2 * min_n)
+    )
+})
+
+dt <- as.data.table(af_down_mod)
+af_down_summary_mod <- dt[,.(Down_freq = mean(Down_freq, na.rm = TRUE),
+                              SD_freq = sd(Down_freq, na.rm = TRUE),
+                              n_reps = sum(!is.na(Down_freq))),
+                           by = .(Group, Variant)]
+
+af_mod2 <- af_mod %>%
+  left_join(af_down_summary_mod, by = c("Group", "Variant")) %>%
+  mutate(Type = "Moderate") %>%
+  select(Variant, Group, Type, Freq, Down_freq, SD_freq)
+
 
 # Low 
 # n per group 
@@ -278,30 +363,72 @@ af_low <- derived_genotypes_low %>%
   transmute(Variant, Freq, Type = "Low", Group)
 
 
-# Save frequencies
-write.csv(af_high, "Files/Frequency_derived_high_3OUT.csv", quote=F, row.names = F)
-write.csv(af_mod, "Files/Frequency_derived_moderate_3OUT.csv", quote=F, row.names = F)
-write.csv(af_low, "Files/Frequency_derived_low_3OUT.csv", quote=F, row.names = F)
+af_down_low <- map_dfr(1:n_rep, function(rep_i) {
+  
+  sampled_ids <- sample_info %>%
+    group_by(Group) %>%
+    slice_sample(n = min_n, replace = FALSE) %>%
+    ungroup()
+  
+  sampled_ids %>%
+    crossing(Variant = all_variants_low$Variant) %>%
+    left_join(
+      derived_genotypes_low %>%
+        filter(Group != "Zoo") %>%
+        mutate(dosage = unname(dosage_map[Genotype])) %>%
+        select(Group, SampleID, Variant, dosage),
+      by = c("Group", "SampleID", "Variant")
+    ) %>%
+    mutate(dosage = replace_na(dosage, 0)) %>%
+    group_by(Group, Variant) %>%
+    summarise(sum_dosage = sum(dosage), .groups = "drop") %>%
+    mutate(
+      rep = rep_i,
+      Down_freq = sum_dosage / (2 * min_n)
+    )
+})
 
-#write.csv(af_high, "Files/Frequency_derived_high_5OUT.csv", quote=F, row.names = F)
-#write.csv(af_mod, "Files/Frequency_derived_moderate_5OUT.csv", quote=F, row.names = F)
-#write.csv(af_low, "Files/Frequency_derived_low_5OUT.csv", quote=F, row.names = F)
+dt <- as.data.table(af_down_low)
+af_down_summary_low <- dt[,.(Down_freq = mean(Down_freq, na.rm = TRUE),
+                             SD_freq = sd(Down_freq, na.rm = TRUE),
+                             n_reps = sum(!is.na(Down_freq))),
+                          by = .(Group, Variant)]
+
+af_low2 <- af_low %>%
+  left_join(af_down_summary_low, by = c("Group", "Variant")) %>%
+  mutate(Type = "Low") %>%
+  select(Variant, Group, Type, Freq, Down_freq, SD_freq)
+
+
+
+# Save frequencies
+#write.csv(af_high, "Files/Frequency_derived_high_3OUT_NEW.csv", quote=F, row.names = F)
+#write.csv(af_mod, "Files/Frequency_derived_moderate_3OUT_NEW.csv", quote=F, row.names = F)
+#write.csv(af_low, "Files/Frequency_derived_low_3OUT_NEW.csv", quote=F, row.names = F)
+
+write.csv(af_high2, "Files/Frequency_derived_high_3OUT_NEW_down.csv", quote=F, row.names = F)
+write.csv(af_mod2, "Files/Frequency_derived_moderate_3OUT_down_NEW.csv", quote=F, row.names = F)
+write.csv(af_low2, "Files/Frequency_derived_low_3OUT_NEW_down.csv", quote=F, row.names = F)
+
+#write.csv(af_high, "Files/Frequency_derived_high_5OUT_NEW.csv", quote=F, row.names = F)
+#write.csv(af_mod, "Files/Frequency_derived_moderate_5OUT_NEW.csv", quote=F, row.names = F)
+#write.csv(af_low, "Files/Frequency_derived_low_5OUT_NEW.csv", quote=F, row.names = F)
 
 # READ FREQUENCIES -----
-#listfreq_high_df<- read.table("Files/Frequency_derived_high_3OUT.csv", header = T, sep=",")
-#listfreq_moderate_df<- read.table("Files/Frequency_derived_moderate_3OUT.csv", header = T, sep=",")
-#listfreq_low_df<- read.table("Files/Frequency_derived_low_3OUT.csv", header = T, sep=",")
-#listfreq_high_df<- read.table("Files/Frequency_derived_high_5OUT.csv", header = T, sep=",")
-#listfreq_moderate_df<- read.table("Files/Frequency_derived_moderate_5OUT.csv", header = T, sep=",")
-#listfreq_low_df<- read.table("Files/Frequency_derived_low_5OUT.csv", header = T, sep=",")
+#listfreq_moderate_df<- read.table("Files/Frequency_derived_moderate_3OUT_NEW.csv", header = T, sep=",")
+#listfreq_high_df<- read.table("Files/Frequency_derived_high_3OUT_NEW.csv", header = T, sep=",")
+#listfreq_low_df<- read.table("Files/Frequency_derived_low_3OUT_NEW.csv", header = T, sep=",")
+#listfreq_high_df<- read.table("Files/Frequency_derived_high_5OUT_NEW.csv", header = T, sep=",")
+#listfreq_moderate_df<- read.table("Files/Frequency_derived_moderate_5OUT_NEW.csv", header = T, sep=",")
+#listfreq_low_df<- read.table("Files/Frequency_derived_low_5OUT_NEW.csv", header = T, sep=",")
 
-listfreq_high_df<-af_high
-listfreq_moderate_df<-af_mod
-listfreq_low_df <- af_low
+listfreq_high_df<-af_high2
+listfreq_moderate_df<-af_mod2
+listfreq_low_df <- af_low2
 
 frequency_all <- rbind.data.frame(listfreq_high_df,listfreq_moderate_df,listfreq_low_df)
 frequency_all$Type <- factor(frequency_all$Type, levels=c("Low","Moderate","High"), ordered = T)
-
+#
 # RXY ASIAN -----
 types <- c("High","Moderate", "Low")
 
@@ -367,8 +494,6 @@ for (pop in c(groups$Group[1:12],groups$Group[14:15])){
 }
 
 Rxy_frame_df <- do.call(rbind, Rxy_framelist)
-
-
 colnames(Rxy_frame_df)<-c("Type","Rxy", "SE","POP")
 Rxy_frame_df$Rxy <- as.numeric(Rxy_frame_df$Rxy)
 Rxy_frame_df$SE <- as.numeric(Rxy_frame_df$SE)
@@ -398,10 +523,6 @@ rxy_plot_all <- rxy_plot_all + geom_col(position = "dodge") + theme_classic()+ f
 rxy_plot_all
 
 #no Asian
-
-order_pop2 <- c("Northern Baltic","Southern Baltic","Eastern European Lowlands","Central European Lowlands",
-                "Karelian","Eastern Finland","Western Finland", "Scandinavian", "Carpathian" ,
-                "Dinaric Balkan","North Western Iberian","Italian")
 Rxy_frame_normalized_m$Group <- factor(Rxy_frame_normalized_m$Group, levels = order_pop2, ordered = TRUE)
 
 col_vec <- setNames(groups_noAsian$colour, groups_noAsian$GroupID)
@@ -410,7 +531,7 @@ xlab_vec <- setNames(
   groups_noAsian$GroupID
 )
 
-rxy_plot_noasia <- ggplot(Rxy_frame_normalized_m[Rxy_frame_normalized_m$SuperGroup!="Asian",], aes(GroupID, Rxy_norm_2, fill=Type))
+rxy_plot_noasia <- ggplot(Rxy_frame_normalized_m[-which(Rxy_frame_normalized_m$SuperGroup%in%c("Asian","Zoo")),], aes(GroupID, Rxy_norm_2, fill=Type))
 rxy_plot_noasia <- rxy_plot_noasia + geom_col(position = "dodge") + theme_classic()+ facet_grid(.~SuperGroup, scales="free",space="free")+
   geom_errorbar(aes(ymin=(Rxy_norm-1)-2*SE_norm, ymax=(Rxy_norm-1)+2*SE_norm), width=.2, position=position_dodge(.75)) +
   geom_hline(linetype="dashed",yintercept = 0) + scale_fill_manual(values=c("#696047","#7dde92")) +
@@ -422,7 +543,7 @@ rxy_plot_noasia <- rxy_plot_noasia + geom_col(position = "dodge") + theme_classi
   scale_x_discrete(labels = xlab_vec)
 rxy_plot_noasia
 
-#ggsave("Plots/Rxy_geneticload_noAsian_3OUT_NEW.pdf", height = 5, width =12)
+ggsave("Plots/Rxy_geneticload_noAsian_3OUT_NEW.pdf", height = 5, width =12)
 #ggsave("Plots/Rxy_geneticload_noAsian_5OUT_NEW.pdf", height = 5, width =12)
 ggsave("Plots/FigS23.pdf", height = 5, width =12)
 
@@ -527,10 +648,6 @@ ggsave("Plots/Rxy_geneticload_3OUT_VSSCAN.pdf", height = 5, width =16)
 
 
 #no Asian
-
-order_pop2 <- c("Northern Baltic","Southern Baltic","Eastern European Lowlands","Central European Lowlands",
-                "Karelian","Eastern Finland","Western Finland", "Scandinavian", "Carpathian" ,
-                "Dinaric Balkan","North Western Iberian","Italian")
 Rxy_frame_normalized_m$Group <- factor(Rxy_frame_normalized_m$Group, levels = order_pop2, ordered = TRUE)
 
 rxy_plot_noasia <- ggplot(Rxy_frame_normalized_m[Rxy_frame_normalized_m$SuperGroup!="Asian",], aes(Pop, Rxy_norm_2, fill=Type))
@@ -541,8 +658,7 @@ rxy_plot_noasia <- rxy_plot_noasia + geom_col(position = "dodge") + theme_classi
   scale_y_continuous(labels = function(x) x + cut.off) +
   xlab("") +
   ylab("Rxy (Pop/Scandinavian)") + 
-  theme(legend.position = "none",
-                                                     axis.text.x = element_text(angle=45, hjust=1))
+  theme(legend.position = "none",axis.text.x = element_text(angle=45, hjust=1))
 rxy_plot_noasia
 
 ggsave("Plots/Rxy_geneticload_noAsian_3OUT_SCAN.pdf", height = 5, width =12)
@@ -565,24 +681,25 @@ rxy_plot_noasia
 
 ###
 # Fixed variants and distributions----
-
 df_fixed <- frequency_all %>%
   group_by(Group, Type) %>%
   summarise(
     n_total2 = n(),
     n_total  = sum(Freq > 0 , na.rm = TRUE),
     n_total_segregat  = sum(Freq > 0 & Freq<1, na.rm = TRUE),
+    n_total_segregat_down  = sum(Down_freq > 0 & Down_freq<1, na.rm = TRUE),
     n_fixed_derived   = sum(Freq == 1, na.rm = TRUE),
-    n_fixed_almost = sum(Freq > 0.95, na.rm = TRUE),
+    n_fixed_almost= sum(Freq >= 0.97, na.rm = TRUE),
+    n_fixed_almost_down = sum(Down_freq >= 0.97, na.rm = TRUE),
+    n_fixed_down = sum(Down_freq == 1, na.rm = TRUE),
     perc_fixed_derived   = n_fixed_derived / n_total * 100,
-    perc_fixed_almost_derived = n_fixed_almost / n_total * 100
+    perc_fixed_almostdown_derived = n_fixed_almost_down / n_total * 100
   )
 
 df_fixed_m <- merge(df_fixed, groups[,c("Group","colour","SuperGroup","GroupID")], by="Group")
-df_fixed_m$SuperGroup <- factor(df_fixed_m$SuperGroup, levels=c("Fennoscandia","Eastern","Southern","Asian"), ordered = T)
+df_fixed_m$SuperGroup <- factor(df_fixed_m$SuperGroup, levels=c("Eastern","Fennoscandia","Southern","Asian","Zoo"), ordered = T)
 df_fixed_m$Type <- factor(df_fixed_m$Type, levels=c("High","Moderate","Low"), ordered = T)
-df_fixed_m_noasian <- df_fixed_m[df_fixed_m$SuperGroup!="Asian",]
-
+df_fixed_m_noasian <- df_fixed_m[-which(df_fixed_m$SuperGroup%in%c("Asian","Zoo")),]
 
 col_vec <- setNames(groups_noAsian$colour, groups_noAsian$GroupID)
 xlab_vec <- setNames(
@@ -593,6 +710,7 @@ xlab_vec <- setNames(
 
 g_fixed <- ggplot(df_fixed_m_noasian[df_fixed_m_noasian$Type!="Low",], aes(GroupID,n_fixed_derived, fill=GroupID))
 g_fixed <- g_fixed +geom_col() + theme_classic() + facet_grid(Type~SuperGroup, scales="free") +
+ # geom_point(data=df_fixed_m_noasian[df_fixed_m_noasian$Type!="Low",], aes(GroupID,n_fixed_down, fill=GroupID))+
   scale_fill_manual(values = col_vec) +
   guides(color=guide_legend(title="Population"))+ xlab("")+ylab("Fixed Deleterious Derived Variants ")+
   theme(axis.text.x = element_markdown(angle = 90, hjust = 1, vjust = 0.5),
@@ -605,12 +723,14 @@ g_fixed
 g_genotypes <- ggplot(df_fixed_m_noasian[df_fixed_m_noasian$Type!="Low",], aes(GroupID,n_total_segregat, fill=GroupID))
 g_genotypes <- g_genotypes +geom_col() + theme_classic() + facet_grid(Type~SuperGroup, scales="free") +
   scale_fill_manual(values = col_vec) +
+  #geom_point(data=df_fixed_m_noasian[df_fixed_m_noasian$Type!="Low",], aes(GroupID,n_total_segregat_down, fill=GroupID))+
   guides(color=guide_legend(title="Population"))+ xlab("")+ylab("Segregating Deleterious Variants ")+
   theme(axis.text.x = element_markdown(angle = 90, hjust = 1, vjust = 0.5),
         legend.position = "none", strip.text=element_text(size=8))+
   scale_x_discrete(labels = xlab_vec)
 
 g_genotypes  
+
 
 
 # with asian
@@ -621,7 +741,8 @@ xlab_vec_as <- setNames(
 )
 
 g_fixed_a <- ggplot(df_fixed_m[df_fixed_m$Type!="Low",], aes(GroupID,n_fixed_derived, fill=GroupID))
-g_fixed_a <- g_fixed_a +geom_col() + theme_classic() + facet_grid(Type~SuperGroup, scales="free") +
+g_fixed_a <- g_fixed_a +geom_col() + theme_classic() + facet_grid(Type~SuperGroup, scales="free", space="free_x") +
+  geom_point(data=df_fixed_m[df_fixed_m$Type!="Low"&df_fixed_m$Group!="Zoo",], aes(GroupID,n_fixed_down, fill=GroupID))+
   scale_fill_manual(values = col_vec_as) +
   guides(color=guide_legend(title="Population"))+ xlab("")+ylab("Fixed Deleterious Derived Variants ")+
   theme(axis.text.x = element_markdown(angle = 90, hjust = 1, vjust = 0.5),
@@ -632,8 +753,9 @@ g_fixed_a
 
 
 g_genotypes_a <- ggplot(df_fixed_m[df_fixed_m$Type!="Low",], aes(GroupID,n_total_segregat, fill=GroupID))
-g_genotypes_a <- g_genotypes_a +geom_col() + theme_classic() + facet_grid(Type~SuperGroup, scales="free") +
+g_genotypes_a <- g_genotypes_a +geom_col() + theme_classic() + facet_grid(Type~SuperGroup, scales="free", space="free_x") +
   scale_fill_manual(values = col_vec_as) +
+  geom_point(data=df_fixed_m[df_fixed_m$Type!="Low"&df_fixed_m$Group!="Zoo",], aes(GroupID,n_total_segregat_down, fill=GroupID))+
   guides(color=guide_legend(title="Population"))+ xlab("")+ylab("Segregating Deleterious Variants ")+
   theme(axis.text.x = element_markdown(angle = 90, hjust = 1, vjust = 0.5),
         legend.position = "none")+
@@ -641,7 +763,9 @@ g_genotypes_a <- g_genotypes_a +geom_col() + theme_classic() + facet_grid(Type~S
 
 g_genotypes_a  
 
-ggsave("Plots/FigS22.pdf", width = 8, height = 4)
+g_fixed_a / g_genotypes_a + plot_layout(heights = c(1, 1)) + plot_annotation(tag_levels = 'A')
+
+ggsave("Plots/FigS22.pdf", width = 8, height = 8)
 
 
 
@@ -667,7 +791,6 @@ df_counts <- total_genotypes %>%
          Class %in% types) %>%
   group_by(SampleID, Class) %>%
   summarise(
-    Label    = first(Label),
     Group    = first(Group),
     Location = first(Location),
     Het      = sum(Genotype %in% c("0|1", "1|0")),
@@ -677,14 +800,14 @@ df_counts <- total_genotypes %>%
 
 df_counts$Total <-df_counts$Het + df_counts$Hom
 
-write.csv2(df_counts,"Files/Counts_all_3OUT.csv", quote=F, row.names=F)
-#write.csv2(df_counts,"Files/Counts_all_5OUT.csv", quote=F, row.names=F)
+#write.csv2(df_counts,"Files/Counts_all_3OUT_NEW.csv", quote=F, row.names=F)
+#write.csv2(df_counts,"Files/Counts_all_5OUT_NEW.csv", quote=F, row.names=F)
 
 # Read saved file for COUNTs ----
-#df_counts <- read.csv2("Files/Counts_all_3OUT.csv")
-#df_counts <- read.csv2("Files/Counts_all_5OUT.csv")
+#df_counts <- read.csv2("Files/Counts_all_3OUT_NEW.csv")
+df_counts <- read.csv2("Files/Counts_all_5OUT_NEW.csv")
 
-df_counts_gather <- gather(df_counts, Load, Count, -SampleID, -Class, -Label, 
+df_counts_gather <- gather(df_counts, Load, Count, -SampleID, -Class,
                            -Group, -Location)
 
 # Plot counts
@@ -695,10 +818,9 @@ df_counts_gather$Class <- factor(df_counts_gather$Class, ordered = T, levels=c("
 
 df_counts_gather_m <- merge(df_counts_gather, groups[,c("Group","colour","SuperGroup")], by="Group")
 
-df_counts_gather_m_noAsian <- df_counts_gather_m[df_counts_gather_m$SuperGroup!="Asian",]
+df_counts_gather_m_noAsian <- df_counts_gather_m[-which(df_counts_gather_m$SuperGroup%in%c("Asian","Zoo")),]
 
 
-#TODO THIS ONE WITH 5OUT
 g_counts4 <- ggplot(df_counts_gather_m_noAsian, 
                     aes(Load, Count, color=colour))
 g_counts4 <- g_counts4 + geom_boxplot(outlier.shape = NA, position = position_dodge(width=0.6)) + 
@@ -710,7 +832,7 @@ g_counts4 <- g_counts4 + geom_boxplot(outlier.shape = NA, position = position_do
   guides(color=guide_legend(title="Population"))
 g_counts4
 
-ggsave("Plots/FigS21_5OUT.pdf", width = 8, height = 7)
+#ggsave("Plots/FigS21_5OUT.pdf", width = 8, height = 7)
 
 g_counts4 <- ggplot(df_counts_gather_m_noAsian[df_counts_gather_m_noAsian$Load!="Total Count",], 
                     aes(Load, Count, color=colour))
@@ -728,7 +850,7 @@ ggsave("Plots/FigS24.pdf", width = 8, height = 7)
 
 # MAIN FIGURE----------
 # Directly from the metadata file
-metadata_mw2_noasian <- metadata_mw2[metadata_mw2$SuperGroup!="Asian",]
+metadata_mw2_noasian <- metadata_mw2[-which(metadata_mw2$SuperGroup%in%c("Asian","Zoo")),]
 metadata_mw2_noasian_spcounts <- metadata_mw2_noasian %>%
   pivot_longer(
     cols = c(Total_High, Total_Moderate,Total_Low),
@@ -743,6 +865,11 @@ metadata_mw2_noasian_spcounts <- metadata_mw2_noasian %>%
   )
 metadata_mw2_noasian_spcounts$Class<- factor(metadata_mw2_noasian_spcounts$Class, 
                                              levels=c("High","Moderate","Low"), ordered = T)
+col_vec <- setNames(groups_noAsian$colour, groups_noAsian$GroupID)
+xlab_vec <- setNames(
+  paste0("<span style='color:", col_vec, "'>", groups_noAsian$GroupID, "</span>"),
+  groups_noAsian$GroupID
+)
 
 g_counts_total <- ggplot(metadata_mw2_noasian_spcounts[metadata_mw2_noasian_spcounts$Class !="Low",], 
                          aes(GroupID, TotalCounts, color=GroupID))
@@ -759,6 +886,7 @@ g_counts_total <- g_counts_total +
         legend.position = "none", strip.text=element_text(size=8))+
   scale_x_discrete(labels = xlab_vec)
 g_counts_total
+
 
 
 metadata_mw2_noasian_hom_counts <- metadata_mw2_noasian %>%
@@ -807,8 +935,7 @@ corr
 
 
 (g_counts_total + g_genotypes ) / (g_counts_hom + g_fixed)  + plot_annotation(tag_levels = 'A')
-ggsave("Plots/Figure4.pdf", height = 17, width = 18.4,units="cm")
-
+ggsave("Plots/Figure4_new.pdf", height = 17, width = 18.4,units="cm")
 
 # Some stats -----
 metadata_mw2 %>%
@@ -822,23 +949,23 @@ metadata_mw2 %>%
 metadata_mw2 %>%
   group_by(Group) %>%
   summarise(
-    mean_Heterozygosity = mean(Heterozygosity, na.rm = TRUE),
-    sd_Heterozygosity   = sd(Heterozygosity, na.rm = TRUE),        # optional
+    mean_Heterozygosity = mean(Het_VCF, na.rm = TRUE),
+    sd_Heterozygosity   = sd(Het_VCF, na.rm = TRUE),        # optional
     n_samples = n()                             # optional
   ) %>% arrange(desc(mean_Heterozygosity))
 
 
-# increase in load
+# increase in load - maybe remove Zoo as well
 load_summ <- metadata_mw2 %>%
-  filter(!Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")) %>%
+  filter(!Group %in% c("Eastern Asian","South Western Asian")) %>%
   group_by(Group) %>%
   summarise(
-    ratio_Total_Moderate = mean(Total_Moderate, na.rm = TRUE)/mean(metadata_mw2[which(!metadata_mw2$Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")),]$Total_Moderate),
-    perc_Total_Moderate = (mean(Total_Moderate, na.rm = TRUE)/mean(metadata_mw2[which(!metadata_mw2$Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")),]$Total_Moderate)-1)*100,
+    ratio_Total_Moderate = mean(Total_Moderate, na.rm = TRUE)/mean(metadata_mw2[which(!metadata_mw2$Group %in% c("Eastern Asian", "South Western Asian")),]$Total_Moderate),
+    perc_Total_Moderate = (mean(Total_Moderate, na.rm = TRUE)/mean(metadata_mw2[which(!metadata_mw2$Group %in% c("Eastern Asian","South Western Asian")),]$Total_Moderate)-1)*100,
     mean_Total_Moderate = mean(Total_Moderate, na.rm = TRUE),
     
-    ratio_Total_High = mean(Total_High, na.rm = TRUE)/mean(metadata_mw2[which(!metadata_mw2$Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")),]$Total_High),
-    perc_Total_High = (mean(Total_High, na.rm = TRUE)/mean(metadata_mw2[which(!metadata_mw2$Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")),]$Total_High)-1)*100,
+    ratio_Total_High = mean(Total_High, na.rm = TRUE)/mean(metadata_mw2[which(!metadata_mw2$Group %in% c("Eastern Asian","South Western Asian")),]$Total_High),
+    perc_Total_High = (mean(Total_High, na.rm = TRUE)/mean(metadata_mw2[which(!metadata_mw2$Group %in% c("Eastern Asian", "South Western Asian")),]$Total_High)-1)*100,
     mean_Total_High = mean(Total_High, na.rm = TRUE),
     
     #ratio_T_Moderate = Total_Moderate/mean_Total_Moderate,
@@ -850,16 +977,16 @@ write.csv2(load_summ,"Files/Summary_geneticload_average.csv", quote = F, row.nam
 
 # segregating mutation
 sites_high <- df_fixed_m %>%
-  filter(!Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")) %>%
+  filter(!Group %in% c("Eastern Asian","South Western Asian")) %>%
   filter(Type %in% c("High")) %>%
   group_by(Group) %>%
   reframe(
-    ratio_Total_Segregating = n_total_segregat/mean(df_fixed_m[which(!df_fixed_m$Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")&df_fixed_m$Type %in% c("High")),]$n_total_segregat), 
-    perc_Total_Segregating = (n_total_segregat/mean(df_fixed_m[which(!df_fixed_m$Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")&df_fixed_m$Type %in% c("High")),]$n_total_segregat)-1)*100,
+    ratio_Total_Segregating = n_total_segregat/mean(df_fixed_m[which(!df_fixed_m$Group %in% c("Eastern Asian","South Western Asian")&df_fixed_m$Type %in% c("High")),]$n_total_segregat), 
+    perc_Total_Segregating = (n_total_segregat/mean(df_fixed_m[which(!df_fixed_m$Group %in% c("Eastern Asian","South Western Asian")&df_fixed_m$Type %in% c("High")),]$n_total_segregat)-1)*100,
     mean_Total_Segregating = n_total_segregat,
     
-    ratio_Total_fixed_derived = n_fixed_derived/mean(df_fixed_m[which(!df_fixed_m$Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")&df_fixed_m$Type %in% c("High")),]$n_fixed_derived),
-    perc_Total_fixed_derived = (n_fixed_derived/mean(df_fixed_m[which(!df_fixed_m$Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")&df_fixed_m$Type %in% c("High")),]$n_fixed_derived)-1)*100,
+    ratio_Total_fixed_derived = n_fixed_derived/mean(df_fixed_m[which(!df_fixed_m$Group %in% c("Eastern Asian","South Western Asian")&df_fixed_m$Type %in% c("High")),]$n_fixed_derived),
+    perc_Total_fixed_derived = (n_fixed_derived/mean(df_fixed_m[which(!df_fixed_m$Group %in% c("Eastern Asian","South Western Asian")&df_fixed_m$Type %in% c("High")),]$n_fixed_derived)-1)*100,
     mean_Total_fixed_derived = n_fixed_derived,
     
     n_samples = n()                             # optional
@@ -869,7 +996,7 @@ write.csv2(sites_high,"Files/Summary_sites_high_average.csv", quote = F, row.nam
 
 
 sites_mod <- df_fixed_m %>%
-  filter(!Group %in% c("Eastern Asian", "Volga-Ural","South Western Asian")) %>%
+  filter(!Group %in% c("Eastern Asian", "South Western Asian")) %>%
   filter(Type %in% c("Moderate")) %>%
   group_by(Group) %>%
   reframe(

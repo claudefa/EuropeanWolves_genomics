@@ -13,23 +13,25 @@ library(stringr)
 setwd("~/Documents/OneDrive - University of Copenhagen/ResQ_MSCA/")
 
 #Metadata
-metadata_mw <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 1)
+metadata_mw <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 1)
+metadata_mw$Remove<- as.character(metadata_mw$Remove)
+metadata_mw <- metadata_mw[-which(metadata_mw$Remove=="Yes"),]
 samples <- metadata_mw$SampleID
 
-groups <- read_excel("Files/Metadata_available/Metadata_modernpaper.xlsx", sheet = 2)
+groups <- read_excel("Files/Wolves_metadata_Juny2026.xlsx", sheet = 2)
 
-order_popid <- c("EASIA","VOUR","SWASIA","KAR",
+order_popid <- c("EASIA","VOUR","SWASIA","ZOO","KAR",
                  "EFIN","WFIN", "SCAN", "NBAL",
-                 "SBAL","CAR" ,"EEL","CEL",
+                 "SBAL","CAR" ,"CEL",
                  "DINBAL","NWIB","ITA")
 
 order_pop <- c("Karelian","Eastern Finland",
                "Western Finland", "Scandinavian", "Northern Baltic",
-               "Southern Baltic","Carpathian" ,"Eastern European Lowlands","Central European Lowlands",
+               "Southern Baltic","Carpathian" ,"Central European Lowlands", "Volga-Ural",
                "Dinaric Balkan","North Western Iberian","Italian",
-               "Eastern Asian","Volga-Ural","South Western Asian")
-order_pop2 <- c("Northern Baltic","Southern Baltic","Eastern European Lowlands","Central European Lowlands",
-                "Karelian","Eastern Finland","Western Finland", "Scandinavian", "Carpathian" ,
+               "Eastern Asian","Volga-Ural","South Western Asian","Zoo")
+order_pop2 <- c("Northern Baltic","Southern Baltic","Central European Lowlands","Volga-Ural",
+                "Karelian","Eastern Finland","Western Finland", "Scandinavian","Zoo", "Carpathian" ,
                 "Dinaric Balkan","North Western Iberian","Italian")
 
 metadata_mw$Group <- factor(metadata_mw$Group, levels = order_pop, ordered = T)
@@ -41,30 +43,37 @@ groups$GroupID <- factor(groups$GroupID, levels = order_popid, ordered = T)
 
 metadata_mw2 <- merge(metadata_mw, groups[, c("Group","colour","SuperGroup")], by="Group")
 
-metadata_mw2$SuperGroup <- factor(metadata_mw2$SuperGroup, levels=c("Fennoscandia","Eastern","Southern","Asian"), ordered = T)
+metadata_mw2$SuperGroup <- factor(metadata_mw2$SuperGroup, levels=c("Fennoscandia","Eastern","Southern","Asian","Zoo"), ordered = T)
+
 
 # READ F4 RATIO FOR DOG ANCESTRY CORRELATIONS ----
 load("Files/f4ratio_all.RData") 
 res_f4$SampleID <- res_f4$pop3
-metadata_mw_f4 <- merge(metadata_mw,res_f4[,c("SampleID","alpha","z")], by="SampleID")
+
+write.csv2(res_f4,"Files/F4_ratio_evelyn.csv", quote = F, row.names = F)
+
+metadata_mw_f4 <- merge(metadata_mw,res_f4[,c("SampleID","alpha","z")], by="SampleID") 
 metadata_mw2_f4 <- merge(metadata_mw2,res_f4[,c("SampleID","alpha","z")], by="SampleID")
 
 metadata_mw2_f4_european <- metadata_mw2_f4[metadata_mw2_f4$SuperGroup!="Asian",]
 
-summary(lm(metadata_mw2_f4_european$Heterozygosity~metadata_mw2_f4_european$alpha))
-summary(lm(metadata_mw2_f4_european$Heterozygosity~metadata_mw2_f4_european$alpha+metadata_mw2_f4_european$Group))
+summary(lm(metadata_mw2_f4_european$Het_VCF~metadata_mw2_f4_european$alpha))
+summary(lm(metadata_mw2_f4_european$Het_VCF~metadata_mw2_f4_european$alpha+metadata_mw2_f4_european$Group))
 
-g <- ggplot(metadata_mw2_f4_european, aes(alpha,Heterozygosity))
+g <- ggplot(metadata_mw2_f4_european, aes(alpha,Het_VCF))
 g <- g + geom_point(aes(color=colour)) + theme_classic()+geom_smooth(method="lm",formula=y~x)+
+  ylab("Relative Heterozygosity")+
+  
   scale_color_identity(guide = "legend", labels = groups$Group,breaks = groups$colour) +
   theme(legend.title = element_blank())
 
 g
 
 g1 <- ggplot(metadata_mw2_f4_european[which(metadata_mw2_f4_european$Group%in%
-                                             c("Italian","Eastern European Lowlands","Southern Baltic")),], 
-            aes(alpha, Heterozygosity, color=colour))
+                                             c("Italian","Volga-Ural","Southern Baltic")),], 
+            aes(alpha, Het_VCF, color=colour))
 g1 <- g1 + geom_point(aes(color=colour)) + theme_classic()+geom_smooth(method="lm")+ 
+  ylab("Relative Heterozygosity")+
  # facet_grid(.~Group)+
   scale_color_identity(guide = "legend", labels = groups$Group,breaks = groups$colour) +
   theme(legend.title = element_blank())
@@ -78,36 +87,71 @@ dog
 ggsave("Plots/Dog_het.pdf", height = 13, width = 13)
 ggsave("Plots/FigS26.pdf", height = 13, width = 14)
 
+
+# Dog by country
+metadata_mw2_f4_european_filt <- metadata_mw2_f4_european %>%
+  group_by(Location) %>%
+  filter(n() > 5) %>%
+  ungroup()
+
+location_order <- metadata_mw2_f4_european_filt %>%
+  group_by(Location) %>%
+  summarise(mean_alpha = mean(alpha, na.rm = TRUE), .groups = "drop") %>%
+  arrange(mean_alpha) %>%
+  pull(Location)
+
+metadata_mw2_f4_european_filt <- metadata_mw2_f4_european_filt %>%
+  mutate(Location = factor(Location, levels = location_order))
+
+g1<- ggplot(metadata_mw2_f4_european_filt, 
+            aes(Location, alpha, color=colour))
+g1 <- g1 + geom_point(position=position_jitterdodge(dodge.width = 0.6, jitter.width = 0.1),alpha=0.6)+
+  geom_boxplot(outlier.shape = NA, fill=NA )+
+  theme_classic()+ 
+ # facet_grid(.~SuperGroup, scales="free", space="free")+
+  scale_color_identity(guide = "legend", labels = groups$Group,breaks = groups$colour) +
+ # scale_shape_manual(values=c(16,17))+
+  xlab("")+ ylab("F4 ratio")+
+  guides(color=guide_legend(title="Population"))+
+  theme(axis.text.x = element_text(angle=45, hjust=1),
+        legend.position = "right")
+g1
+ggsave("Plots/Dog_percountry.pdf", height = 8, width = 13)
+
+
+
+
+
 library(broom)
 
 results <- metadata_mw2_f4_european %>%
   group_by(Group) %>%
-  group_modify(~ broom::tidy(lm(Heterozygosity ~ alpha, data = .x)))
+  group_modify(~ broom::tidy(lm(Het_VCF ~ alpha, data = .x)))
 
 results
 
-summary(lm(metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Italian",]$Heterozygosity~
+summary(lm(metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Italian",]$Het_VCF~
              metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Italian",]$alpha))
 
-summary(lm(metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Eastern European Lowlands",]$Heterozygosity~
-             metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Eastern European Lowlands",]$alpha))
+summary(lm(metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Volga-Ural",]$Het_VCF~
+             metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Volga-Ural",]$alpha))
 
-summary(lm(metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Southern Baltic",]$Heterozygosity~
+summary(lm(metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Southern Baltic",]$Het_VCF~
              metadata_mw2_f4_european[metadata_mw2_f4_european$Group=="Southern Baltic",]$alpha))
 
 
 metadata_mw2_f4_european %>%
   group_by(Group) %>%
   summarise(
-    mean_Heterozygosity = mean(Heterozygosity, na.rm = TRUE),
-    sd_Heterozygosity   = sd(Heterozygosity, na.rm = TRUE),        # optional
+    mean_Heterozygosity = mean(Het_VCF, na.rm = TRUE),
+    sd_Heterozygosity   = sd(Het_VCF, na.rm = TRUE),        # optional
     n_samples = n()                             # optional
   ) %>% arrange(desc(mean_Heterozygosity))
 
 
 
 
-g <- ggplot(metadata_mw2_f4, aes(log(Heterozygosity)))
+g <- ggplot(metadata_mw2_f4, aes(log(Het_VCF)))
 g <- g +geom_density()+
   scale_color_identity(guide = "legend", labels = groups$Group,breaks = groups$colour) 
 
@@ -132,7 +176,7 @@ metadata_mw_f4 %>%
 library(ggplot2)
 library(GGally)
 
-df <- metadata_mw2_f4[, c("Heterozygosity", "FROH", 
+df <- metadata_mw2_f4[, c("Het_VCF","FROH", 
                    "Total_High","Total_Moderate","Total_Low",
                    "Hom_High","Hom_Moderate","Hom_Low")]
 
@@ -182,3 +226,4 @@ p
 
 ggsave("Plots/Correlations.pdf", height = 13, width = 13)
 ggsave("Plots/FigS25.pdf", height = 13, width = 14)
+
