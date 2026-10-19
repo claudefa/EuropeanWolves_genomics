@@ -871,10 +871,27 @@ xlab_vec <- setNames(
   groups_noAsian$GroupID
 )
 
+average_values <- metadata_mw2_noasian %>%
+  summarise(
+    mean_Total_High = mean(Total_High, na.rm = TRUE),
+    mean_Total_Moderate = mean(Total_Moderate, na.rm = TRUE),
+    mean_Hom_High = mean(Hom_High, na.rm = TRUE),
+    mean_Hom_Moderate = mean(Hom_Moderate, na.rm = TRUE),
+    n_samples = n()                        
+  ) %>% arrange(desc(mean_Total_High))
+
+
+average_values_gath <- gather(average_values, key, value,  -n_samples)
+average_values_gath$Class <- c("High","Moderate","High", "Moderate")
+average_values_gath$Type <- c("Total","Total","Hom", "Hom")
+
+
 g_counts_total <- ggplot(metadata_mw2_noasian_spcounts[metadata_mw2_noasian_spcounts$Class !="Low",], 
                          aes(GroupID, TotalCounts, color=GroupID))
 g_counts_total <- g_counts_total + 
   geom_boxplot(outlier.shape = NA, position = position_dodge(width=0.6)) + 
+  geom_hline(data = average_values_gath[average_values_gath$Type=="Total",],aes(yintercept = value),linetype = "dashed",
+             color = "grey40",inherit.aes = FALSE)+
   geom_point(position=position_jitterdodge(dodge.width = 0.6, jitter.width = 0.3), size=0.2)+theme_classic() + 
   facet_grid(Class~SuperGroup, scales="free", space="free_x") + xlab("") + 
   theme(legend.position = "none", axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))+
@@ -906,7 +923,10 @@ metadata_mw2_noasian_hom_counts$Class<- factor(metadata_mw2_noasian_hom_counts$C
 
 g_counts_hom <- ggplot(metadata_mw2_noasian_hom_counts[metadata_mw2_noasian_hom_counts$Class !="Low",], 
                          aes(GroupID, HomCounts, color=GroupID))
-g_counts_hom <- g_counts_hom + geom_boxplot(outlier.shape = NA, position = position_dodge(width=0.6)) + 
+g_counts_hom <- g_counts_hom + 
+  geom_hline(data = average_values_gath[average_values_gath$Type=="Hom",],aes(yintercept = value),linetype = "dashed",
+             color = "grey40",inherit.aes = FALSE)+
+  geom_boxplot(outlier.shape = NA, position = position_dodge(width=0.6)) + 
   geom_point(position=position_jitterdodge(dodge.width = 0.6, jitter.width = 0.3), size=0.2)+theme_classic() + 
   facet_grid(Class~SuperGroup, scales="free", space="free_x") + xlab("") + 
   theme(legend.position = "none", axis.text.x = element_text(angle=90, hjust=1, vjust=0.5))+
@@ -935,7 +955,7 @@ corr
 
 
 (g_counts_total + g_genotypes ) / (g_counts_hom + g_fixed)  + plot_annotation(tag_levels = 'A')
-ggsave("Plots/Figure4_new.pdf", height = 17, width = 18.4,units="cm")
+ggsave("Plots/Figure4_R1.pdf", height = 17, width = 18.4,units="cm")
 
 # Some stats -----
 metadata_mw2 %>%
